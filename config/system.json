@@ -1,0 +1,19 @@
+{
+  "log_level": "INFO",
+  "default_schedule": "0 30 4 * * *",
+  "api_endpoints": {
+    "initial_auth": "https://as.hypergryph.com/user/auth/v1/token_by_phone_password",
+    "app_token": "https://as.hypergryph.com/user/oauth2/v2/grant",
+    "binding_list": "https://binding-api-account-prod.hypergryph.com/account/binding/v1/binding_list",
+    "u8_token": "https://binding-api-account-prod.hypergryph.com/account/binding/v1/u8_token_by_uid",
+    "role_login": "https://ak.hypergryph.com/user/api/role/login",
+    "csrf": "https://ak.hypergryph.com/user",
+    "gacha_records": "https://ak.hypergryph.com/user/api/inquiry/gacha/history",
+    "gacha_cate": "https://ak.hypergryph.com/user/api/inquiry/gacha/cate"
+  },
+  "web_service": {
+    "enabled": false,
+    "host": "127.0.0.1",
+    "port": 8000
+  }
+}
