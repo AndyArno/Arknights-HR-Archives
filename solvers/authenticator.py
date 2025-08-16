@@ -2,7 +2,7 @@ import json
 import os
 import requests
 import time
-from solvers.credential_manager import CredentialManager
+from .credential_manager import CredentialManager
 
 class Authenticator:
     def __init__(self, config_path="./config/system.json"):
@@ -26,6 +26,12 @@ class Authenticator:
             return {}
     
     def authenticate(self, account_config_path, user_uid=None):
+        """
+        执行完整的身份验证流程。
+        :param account_config_path: 账户配置文件的路径。
+        :param user_uid: 系统用户ID，用于创建目录结构。
+        :return: 包含已认证session和game_uid的字典，成功则返回字典，失败则返回None。
+        """
         try:
             credentials = self.credential_manager.load_credentials(account_config_path, skip_token=True)
             if not credentials:
@@ -68,7 +74,6 @@ class Authenticator:
                 })
                 return {
                     "session": self.session,
-                    "token": self.u8_token, 
                     "game_uid": self.game_uid
                 }
             
@@ -261,90 +266,6 @@ class Authenticator:
         except Exception as e:
             print(f"创建用户目录时出错: {e}")
 
-    def fetch_gacha_pool_ids(self):
-        try:
-            url = self.config["api_endpoints"]["gacha_cate"]
-            response = self.session.get(url)
-            
-            if response.status_code != 200:
-                print(f"获取卡池信息失败，状态码: {response.status_code}")
-                return None
-            
-            result = response.json()
-            if result.get("code") != 0:
-                print(f"获取卡池信息失败: {result.get('msg', '未知错误')}")
-                return None
-            
-            pool_data_list = result.get("data", [])
-            pool_id_list = [item["id"] for item in pool_data_list]
-            
-            return pool_id_list
-        except Exception as e:
-            print(f"获取卡池信息时出错: {e}")
-            return None
-
-    def fetch_all_gacha_records(self):
-        if not self.game_uid:
-            print("游戏UID未设置，请先完成认证")
-            return None
-            
-        try:
-            all_records = []
-            pool_id_list = self.fetch_gacha_pool_ids()
-
-            if not pool_id_list:
-                print("未能获取到卡池ID列表")
-                return None
-
-            for pool_id in pool_id_list:
-                params = {
-                    "uid": self.game_uid,
-                    "category": pool_id,
-                    "size": 50
-                }
-                
-                while True:
-                    response = self.session.get(
-                        self.config["api_endpoints"]["gacha_records"],
-                        params=params
-                    )
-                    
-                    if response.status_code != 200:
-                        print(f"获取寻访记录失败，状态码: {response.status_code}")
-                        print(f"Response content: {response.text}")
-                        return None
-                    
-                    result = response.json()
-                    if result.get("code") != 0:
-                        print(f"获取寻访记录失败: {result.get('msg', '未知错误')}")
-                        return None
-                    
-                    records = result.get("data", {}).get("list", [])
-                    if not records:
-                        break
-                    
-                    # 为每条记录添加 poolType 字段
-                    for record in records:
-                        record["poolType"] = pool_id
-                    
-                    all_records.extend(records)
-                    
-                    has_more = result.get("data", {}).get("hasMore", False)
-                    if not has_more:
-                        break
-                    
-                    last_record = records[-1]
-                    params["gachaTs"] = last_record["gachaTs"]
-                    params["pos"] = last_record["pos"]
-                    
-                    time.sleep(0.5)
-            
-            print(f"总共获取到 {len(all_records)} 条寻访记录")
-            return all_records
-
-        except Exception as e:
-            print(f"获取寻访记录时出错: {e}")
-            return None
 
 if __name__ == "__main__":
     auth = Authenticator()
