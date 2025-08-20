@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+{% block title %}用户管理 - 明日方舟人事部档案{% endblock %}
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <h2>用户管理</h2>
+            <a href="{{ url_for('admin.dashboard') }}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> 返回控制台
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-12">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ 'danger' if category == 'error' else 'success' if category == 'success' else 'info' }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        {% if users %}
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">用户列表 ({{ users|length }})</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>用户名</th>
+                                    <th>角色</th>
+                                    <th>密码状态</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for user in users %}
+                                    <tr>
+                                        <td>
+                                            <strong>{{ user.username }}</strong>
+                                            {% if user.username == 'admin' %}
+                                                <span class="badge bg-danger ms-2">超级管理员</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if user.is_admin %}
+                                                <span class="badge bg-success">管理员</span>
+                                            {% else %}
+                                                <span class="badge bg-primary">普通用户</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if user.force_password_change %}
+                                                <span class="badge bg-warning">待修改</span>
+                                            {% else %}
+                                                <span class="badge bg-success">正常</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <div class="btn-group" role="group">
+                                                {% if user.username != 'admin' %}
+                                                    <form method="POST" action="{{ url_for('admin.reset_password', username=user.username) }}" class="d-inline">
+                                                        <button type="submit" class="btn btn-sm btn-outline-warning" 
+                                                                onclick="return confirm('确定要重置用户 {{ user.username }} 的密码吗？')"
+                                                                title="重置密码">
+                                                            <i class="bi bi-key"></i>
+                                                        </button>
+                                                    </form>
+                                                    
+                                                    <form method="POST" action="{{ url_for('admin.toggle_admin', username=user.username) }}" class="d-inline">
+                                                        <button type="submit" class="btn btn-sm btn-outline-{{ 'success' if not user.is_admin else 'secondary' }}" 
+                                                                onclick="return confirm('确定要{{ '授予' if not user.is_admin else '取消' }}用户 {{ user.username }} 的管理员权限吗？')"
+                                                                title="{{ '授予管理员' if not user.is_admin else '取消管理员' }}">
+                                                            <i class="bi bi-{{ 'shield-plus' if not user.is_admin else 'shield-x' }}"></i>
+                                                        </button>
+                                                    </form>
+                                                    
+                                                    <form method="POST" action="{{ url_for('admin.delete_user', username=user.username) }}" class="d-inline">
+                                                        <button type="submit" class="btn btn-sm btn-outline-danger" 
+                                                                onclick="return confirm('确定要删除用户 {{ user.username }} 吗？此操作不可恢复！')"
+                                                                title="删除用户">
+                                                            <i class="bi bi-trash"></i>
+                                                        </button>
+                                                    </form>
+                                                {% else %}
+                                                    <span class="text-muted">超级管理员不可操作</span>
+                                                {% endif %}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        {% else %}
+            <div class="card">
+                <div class="card-body text-center">
+                    <h5 class="text-muted">暂无用户数据</h5>
+                    <p class="text-muted">您可以创建管理员账户或等待用户注册</p>
+                    <form method="POST" action="{{ url_for('admin.create_admin') }}" class="d-inline">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-person-plus"></i> 创建管理员账户
+                        </button>
+                    </form>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">操作说明</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6><span class="badge bg-warning">重置密码</span></h6>
+                        <p class="text-muted small">
+                            管理员重置为 "admin"，普通用户重置为 "123456"，用户首次登录需要修改密码。
+                        </p>
+                    </div>
+                    <div class="col-md-6">
+                        <h6><span class="badge bg-success">权限管理</span></h6>
+                        <p class="text-muted small">
+                            可以授予或取消用户的管理员权限，超级管理员权限不可修改。
+                        </p>
+                    </div>
+                </div>
+                <div class="row mt-3">
+                    <div class="col-md-12">
+                        <h6><span class="badge bg-danger">删除用户</span></h6>
+                        <p class="text-muted small">
+                            删除用户将同时删除其所有数据，此操作不可恢复。超级管理员无法删除。
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

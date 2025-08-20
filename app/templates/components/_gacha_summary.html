@@ -1,0 +1,143 @@
+{% macro render_gacha_summary(summary_data, chart_id_prefix='summary') %}
+{% if summary_data %}
+<!-- 1. 全局统计模块 -->
+<div class="card mb-4">
+    <div class="card-header"><h6 class="mb-0">全局稀有度分布</h6></div>
+    <div class="card-body global-stats-grid">
+        <div id="{{ chart_id_prefix }}-global-rarity-chart" style="height: 350px;"></div>
+        <div id="{{ chart_id_prefix }}-rarity-details" class="rarity-details-grid">
+            <!-- JS动态生成 -->
+        </div>
+    </div>
+</div>
+
+<!-- 2. 卡池类型统计 -->
+<div class="row mb-4">
+    <div class="col-lg-4 col-md-6 mb-3">
+        <div class="card h-100">
+            <div class="card-header"><h6 class="mb-0">限定寻访</h6></div>
+            <div class="card-body">
+                <p class="mb-1"><strong>当前水位:</strong> <span id="{{ chart_id_prefix }}-limited-pity-value" class="fw-bold text-danger">-</span> 抽</p>
+                <p class="mb-1"><strong>总抽数:</strong> <span id="{{ chart_id_prefix }}-limited-total-value">-</span></p>
+                <p class="mb-1"><strong>平均出货:</strong> <span id="{{ chart_id_prefix }}-limited-avg-pity-value">-</span> 抽</p>
+                <p class="mb-0"><strong>下抽概率:</strong> <span id="{{ chart_id_prefix }}-limited-current-prob-value">-</span></p>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4 col-md-6 mb-3">
+        <div class="card h-100">
+            <div class="card-header"><h6 class="mb-0">标准寻访</h6></div>
+            <div class="card-body">
+                <p class="mb-1"><strong>当前水位:</strong> <span id="{{ chart_id_prefix }}-standard-pity-value" class="fw-bold text-danger">-</span> 抽</p>
+                <p class="mb-1"><strong>总抽数:</strong> <span id="{{ chart_id_prefix }}-standard-total-value">-</span></p>
+                <p class="mb-1"><strong>平均出货:</strong> <span id="{{ chart_id_prefix }}-standard-avg-pity-value">-</span> 抽</p>
+                <p class="mb-0"><strong>下抽概率:</strong> <span id="{{ chart_id_prefix }}-standard-current-prob-value">-</span></p>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4 col-md-6 mb-3">
+        <div class="card h-100">
+            <div class="card-header"><h6 class="mb-0">中坚寻访</h6></div>
+            <div class="card-body">
+                <p class="mb-1"><strong>当前水位:</strong> <span id="{{ chart_id_prefix }}-joint-op-pity-value" class="fw-bold text-danger">-</span> 抽</p>
+                <p class="mb-1"><strong>总抽数:</strong> <span id="{{ chart_id_prefix }}-joint-op-total-value">-</span></p>
+                <p class="mb-1"><strong>平均出货:</strong> <span id="{{ chart_id_prefix }}-joint-op-avg-pity-value">-</span> 抽</p>
+                <p class="mb-0"><strong>下抽概率:</strong> <span id="{{ chart_id_prefix }}-joint-op-current-prob-value">-</span></p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    // 使用 IIFE (立即调用函数表达式) 来避免全局作用域污染
+    (function() {
+        const summaryData = {{ summary_data|tojson }};
+        const chartIdPrefix = "{{ chart_id_prefix }}";
+        
+        if (!summaryData) {
+            console.log("Gacha summary data not available for prefix:", chartIdPrefix);
+            return;
+        }
+
+        const rarityColors = { '6星': '#ff6600', '5星': '#ffd700', '4星': '#9370db', '3星': '#808080' };
+
+        function getPieOption(data) {
+            return {
+                tooltip: { trigger: 'item', formatter: '{a} <br/>{b}: {c} ({d}%)' },
+                legend: { orient: 'vertical', left: 'left', top: 'center' },
+                color: Object.values(rarityColors),
+                series: [{
+                    name: '稀有度分布', type: 'pie', radius: ['40%', '70%'],
+                    avoidLabelOverlap: false, label: { show: false },
+                    emphasis: { label: { show: true, fontSize: '20', fontWeight: 'bold' } },
+                    data: data
+                }]
+            };
+        }
+
+        function populateSummaryCard(poolName, stats) {
+            document.getElementById(`${chartIdPrefix}-${poolName}-pity-value`).textContent = stats.current_pity;
+            document.getElementById(`${chartIdPrefix}-${poolName}-total-value`).textContent = stats.total_pulls;
+            document.getElementById(`${chartIdPrefix}-${poolName}-avg-pity-value`).textContent = stats.average_pity.toFixed(1);
+            document.getElementById(`${chartIdPrefix}-${poolName}-current-prob-value`).textContent = `${(stats.current_prob * 100).toFixed(2)}%`;
+        }
+
+        function initializeCharts() {
+            const globalRarityChartEl = document.getElementById(`${chartIdPrefix}-global-rarity-chart`);
+            if (!globalRarityChartEl) return;
+
+            let globalRarityChart = echarts.init(globalRarityChartEl);
+
+            const rarityCountData = [
+                { value: summaryData.global_stats.rarity_counts.six_star, name: '6星' },
+                { value: summaryData.global_stats.rarity_counts.five_star, name: '5星' },
+                { value: summaryData.global_stats.rarity_counts.four_star, name: '4星' },
+                { value: summaryData.global_stats.rarity_counts.three_star, name: '3星' }
+            ];
+            globalRarityChart.setOption(getPieOption(rarityCountData));
+
+            const detailsContainer = document.getElementById(`${chartIdPrefix}-rarity-details`);
+            let detailsHtml = `<div class="fw-bold">稀有度</div><div class="fw-bold">数量</div><div class="fw-bold">占比</div><div class="fw-bold">平均抽数</div>`;
+            const totalPulls = summaryData.global_stats.total_pulls;
+            const keyMap = { '6星': 'six_star', '5星': 'five_star', '4星': 'four_star', '3星': 'three_star' };
+            Object.keys(rarityColors).forEach(rarity => {
+                const key = keyMap[rarity];
+                const count = summaryData.global_stats.rarity_counts[key];
+                const prob = totalPulls > 0 ? (count / totalPulls * 100).toFixed(2) : 0;
+                const avgPulls = count > 0 ? (totalPulls / count).toFixed(2) : 'N/A';
+                detailsHtml += `<div><span class="rarity-color-box" style="background-color:${rarityColors[rarity]}"></span>${rarity}</div><div>${count}</div><div>${prob} %</div><div>${avgPulls}</div>`;
+            });
+            detailsContainer.innerHTML = detailsHtml;
+
+            populateSummaryCard('limited', summaryData.limited);
+            populateSummaryCard('standard', summaryData.standard);
+            populateSummaryCard('joint-op', summaryData.joint_op);
+
+            window.addEventListener('resize', () => {
+                if (globalRarityChart) globalRarityChart.resize();
+            });
+        }
+
+        // 等待ECharts加载完成后再初始化
+        if (typeof echarts !== 'undefined') {
+            initializeCharts();
+        } else {
+            // 如果ECharts还没加载，可以设置一个轮询或者监听
+            const interval = setInterval(() => {
+                if (typeof echarts !== 'undefined') {
+                    clearInterval(interval);
+                    initializeCharts();
+                }
+            }, 100);
+        }
+    })();
+});
+</script>
+{% else %}
+<div class="text-center py-5">
+    <h4 class="text-muted">暂无抽卡统计数据</h4>
+    <p class="text-muted">请先更新账号数据以生成统计图表。</p>
+</div>
+{% endif %}
+{% endmacro %}

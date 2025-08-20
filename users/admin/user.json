@@ -1,0 +1,6 @@
+{
+  "username": "admin",
+  "password": "scrypt:32768:8:1$BHO06KvjXIqdNRrd$9e75afcac5bb1bb80b59f03aee1ce116c74947644e63c86f03a0eead2be269b9b428bec9695291e3077579a875e3a2671e657195533141fd32d17a2c658490ab",
+  "is_admin": true,
+  "force_password_change": false
+}

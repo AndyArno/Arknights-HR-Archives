@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}个人主页 - 明日方舟人事部档案{% endblock %}
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h2>个人主页</h2>
+                <p class="text-muted">欢迎, {{ user.username }}!</p>
+            </div>
+            {% if current_user.username == user.username %}
+                <a href="{{ url_for('auth.change_password') }}" class="btn btn-outline-primary">
+                    <i class="bi bi-key"></i> 修改密码
+                </a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">用户信息</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <strong>用户名:</strong> {{ user.username }}
+                </div>
+                <div class="mb-3">
+                    <strong>角色:</strong> 
+                    {% if user.is_admin %}
+                        <span class="badge bg-success">管理员</span>
+                    {% else %}
+                        <span class="badge bg-primary">普通用户</span>
+                    {% endif %}
+                </div>
+                <div class="mb-3">
+                    <strong>密码状态:</strong> 
+                    {% if user.force_password_change %}
+                        <span class="badge bg-warning">待修改</span>
+                    {% else %}
+                        <span class="badge bg-success">正常</span>
+                    {% endif %}
+                </div>
+                <div class="mb-3">
+                    <strong>游戏账号数:</strong> {{ accounts|length }}
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">我的游戏账号</h5>
+                {% if current_user.username == user.username %}
+                    <a href="{{ url_for('user.add_account', username=user.username) }}" class="btn btn-sm btn-primary">
+                        <i class="bi bi-plus"></i> 添加新账号
+                    </a>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                {% if accounts %}
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>账号UID</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for account in accounts %}
+                                    <tr>
+                                        <td><strong>{{ account }}</strong></td>
+                                        <td>
+                                            <div class="btn-group" role="group">
+                                                <a href="{{ url_for('user.account_detail', username=user.username, account_uid=account) }}" 
+                                                   class="btn btn-sm btn-outline-primary" title="查看详情">
+                                                    <i class="bi bi-eye"></i>
+                                                </a>
+                                                {% if current_user.username == user.username %}
+                                                <form method="POST" action="{{ url_for('user.update_account_data', username=user.username, account_uid=account) }}" class="d-inline">
+                                                    <button type="submit" class="btn btn-sm btn-outline-success" title="更新数据">
+                                                        <i class="bi bi-arrow-clockwise"></i>
+                                                    </button>
+                                                </form>
+                                                <form method="POST" action="{{ url_for('user.delete_account', username=user.username, account_uid=account) }}" class="d-inline">
+                                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="删除账号"
+                                                            onclick="return confirm('确定要删除账号 {{ account }} 吗？此操作不可恢复！');">
+                                                        <i class="bi bi-trash"></i>
+                                                    </button>
+                                                </form>
+                                                {% endif %}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="text-center py-4">
+                        <h5 class="text-muted">暂无游戏账号</h5>
+                        <p class="text-muted">点击"添加账号"按钮来添加您的第一个游戏账号</p>
+                        {% if current_user.username == user.username %}
+                            <a href="{{ url_for('user.add_account', username=user.username) }}" class="btn btn-primary">
+                                <i class="bi bi-plus"></i> 添加账号
+                            </a>
+                        {% endif %}
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-12 text-center">
+        <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-house"></i> 返回首页
+        </a>
+    </div>
+</div>
+{% endblock %}

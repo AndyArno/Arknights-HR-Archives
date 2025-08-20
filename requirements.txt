@@ -1,0 +1,9 @@
+requests>=2.28.0
+cryptography>=3.4.8
+flask
+flask-login
+pystray
+waitress
+pillow
+psutil
+APScheduler

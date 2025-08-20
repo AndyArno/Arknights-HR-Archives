@@ -1,0 +1,184 @@
+{% macro render_pool_details(pool_data, latest_pool_details, chart_id_prefix='pool-details', account_uid=None) %}
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h6 class="mb-0">卡池详情分析</h6>
+        <select id="{{ chart_id_prefix }}-selector" class="form-select form-select-sm w-50">
+            <option selected>请选择卡池...</option>
+            {% if pool_data.pool_list %}
+                {% for pool_name in pool_data.pool_list %}
+                    <option value="{{ pool_name }}" {% if pool_name == pool_data.latest_pool %}selected{% endif %}>{{ pool_name }}</option>
+                {% endfor %}
+            {% endif %}
+        </select>
+    </div>
+    <div class="card-body" id="{{ chart_id_prefix }}-body">
+        <div class="mb-2">
+            <span class="total-pulls-badge">
+                总抽数: <span id="{{ chart_id_prefix }}-total-pulls">-</span>
+            </span>
+        </div>
+        <div id="{{ chart_id_prefix }}-chart"></div>
+        <div id="{{ chart_id_prefix }}-spinner" class="text-center" style="display: none;">
+            <div class="spinner-border spinner-border-sm" role="status"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    // 使用 IIFE (立即调用函数表达式) 来避免全局作用域污染
+    (function() {
+        const poolData = {{ pool_data|tojson }};
+        const latestPoolDetails = {{ latest_pool_details|tojson }};
+        const chartIdPrefix = "{{ chart_id_prefix }}";
+        const accountUid = "{{ account_uid }}";
+        
+        if (!poolData || !latestPoolDetails) {
+            console.log("Pool details data not available for prefix:", chartIdPrefix);
+            return;
+        }
+
+        const poolSelector = document.getElementById(`${chartIdPrefix}-selector`);
+        const poolTotalPulls = document.getElementById(`${chartIdPrefix}-total-pulls`);
+        const detailsSpinner = document.getElementById(`${chartIdPrefix}-spinner`);
+        let poolDetailsChart = null;
+
+        function getPoolPityChartOption(data) {
+            return {
+                tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, formatter: '{b}: {c} 抽' },
+                grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
+                xAxis: { type: 'value' },
+                yAxis: { 
+                    type: 'category', 
+                    data: data.map(item => item.name),
+                    axisLabel: {
+                        rich: {
+                            name: { fontSize: 12, align: 'left' },
+                            pity: { fontSize: 11, color: '#50b3f5', align: 'left' },
+                            new: { fontSize: 10, color: '#28a745', align: 'left' }
+                        },
+                        formatter: function (value, index) {
+                            const item = data[index];
+                            const nameText = `{name|${item.name}}`;
+                            const pityText = `{pity|${item.value}抽}`;
+                            const newText = item.is_new ? `\n{new|(New)}` : '';
+                            return `${nameText}\n${pityText}${newText}`;
+                        }
+                    }
+                },
+                series: [{
+                    name: '出货抽数',
+                    type: 'bar',
+                    data: data.map(item => item.value),
+                    itemStyle: {
+                        color: function(params) {
+                            const value = params.value;
+                            if (value >= 70) return '#c23531';
+                            if (value >= 50) return '#ee6666';
+                            if (value >= 30) return '#fac858';
+                            return '#91cc75';
+                        }
+                    }
+                }]
+            };
+        }
+
+        function calculateChartHeight(dataLength) {
+            // 基础高度 + 每个条目增加的高度
+            const baseHeight = 200;
+            const itemHeight = 35; // 稍微高一点因为标签更复杂
+            return baseHeight + (dataLength * itemHeight);
+        }
+
+        function renderPoolDetails(data) {
+            const totalPullsEl = document.getElementById(`${chartIdPrefix}-total-pulls`);
+            const chartEl = document.getElementById(`${chartIdPrefix}-chart`);
+            
+            if (!chartEl) return;
+            
+            // 动态设置图表容器高度
+            const chartDataLength = (data.six_star_list && data.six_star_list.length) || 0;
+            const chartHeight = calculateChartHeight(chartDataLength);
+            chartEl.style.height = `${chartHeight}px`;
+            
+            if (!poolDetailsChart) {
+                poolDetailsChart = echarts.init(chartEl);
+            } else {
+                // 在重新渲染前调整大小
+                poolDetailsChart.resize();
+                poolDetailsChart.clear();
+            }
+
+            totalPullsEl.textContent = data.total_pulls || '-';
+            
+            // 确保在设置选项后再次调整大小以适应新高度
+            if (poolDetailsChart) {
+                poolDetailsChart.resize();
+            }
+            
+            if (!data.six_star_list || data.six_star_list.length === 0) {
+                poolDetailsChart.setOption({
+                    title: {
+                        text: '此卡池内无六星记录',
+                        left: 'center',
+                        top: 'center',
+                        textStyle: { color: '#999' }
+                    }
+                }, true);
+            } else {
+                const chartData = data.six_star_list.map(item => ({
+                    name: item.char_name,
+                    value: item.pity,
+                    is_new: item.is_new
+                })).sort((a, b) => a.value - b.value);
+                
+                poolDetailsChart.setOption(getPoolPityChartOption(chartData), true);
+            }
+            
+            window.addEventListener('resize', () => {
+                if (poolDetailsChart) poolDetailsChart.resize();
+            });
+        }
+
+        // 初始化图表
+        renderPoolDetails(latestPoolDetails);
+
+        // 选择器事件监听
+        poolSelector.addEventListener('change', async function(e) {
+            if (e.target.value && e.target.value !== '请选择卡池...') {
+                const poolName = e.target.value;
+                detailsSpinner.style.display = 'block';
+                
+                // 从API获取数据
+                const url = `/api/stats/${accountUid}/pool_details/${encodeURIComponent(poolName)}`;
+                
+                try {
+                    const response = await fetch(url);
+                    if (!response.ok) throw new Error(`API Error: ${response.status}`);
+                    const data = await response.json();
+                    renderPoolDetails(data);
+                } catch (error) {
+                    console.error(`Failed to fetch pool details:`, error);
+                    // 显示错误信息
+                    if (poolDetailsChart) {
+                        poolDetailsChart.clear();
+                        poolDetailsChart.setOption({
+                            title: {
+                                text: '加载数据失败',
+                                left: 'center',
+                                top: 'center',
+                                textStyle: { color: '#c23531' }
+                            }
+                        }, true);
+                    }
+                    document.getElementById(`${chartIdPrefix}-total-pulls`).textContent = '-';
+                } finally {
+                    detailsSpinner.style.display = 'none';
+                }
+            }
+        });
+
+    })();
+});
+</script>
+{% endmacro %}

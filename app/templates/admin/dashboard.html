@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% block title %}管理员控制台 - 明日方舟人事部档案{% endblock %}
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <h2>管理员控制台</h2>
+        <p class="text-muted">欢迎, {{ current_user.username }}!</p>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <h5 class="card-title">用户总数</h5>
+                <h2 class="text-primary">{{ users|length }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <h5 class="card-title">管理员数</h5>
+                <h2 class="text-success">{{ users|selectattr('is_admin')|list|length }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <h5 class="card-title">普通用户数</h5>
+                <h2 class="text-info">{{ users|rejectattr('is_admin')|list|length }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <h5 class="card-title">待修改密码</h5>
+                <h2 class="text-warning">{{ users|selectattr('force_password_change')|list|length }}</h2>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">快速操作</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <a href="{{ url_for('admin.list_users') }}" class="btn btn-outline-primary w-100">
+                            <i class="bi bi-people"></i> 用户管理
+                        </a>
+                    </div>
+                    <div class="col-md-4">
+                        <form method="POST" action="{{ url_for('admin.create_admin') }}" class="d-inline">
+                            <button type="submit" class="btn btn-outline-warning w-100" 
+                                    onclick="return confirm('确定要创建管理员账户吗？')">
+                                <i class="bi bi-person-plus"></i> 创建管理员
+                            </button>
+                        </form>
+                    </div>
+                    <div class="col-md-4">
+                        <a href="{{ url_for('user.profile', username=current_user.username) }}" class="btn btn-outline-info w-100">
+                            <i class="bi bi-person"></i> 我的资料
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">最近注册用户</h5>
+            </div>
+            <div class="card-body">
+                {% if users %}
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>用户名</th>
+                                    <th>角色</th>
+                                    <th>密码状态</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for user in users[:5] %}
+                                    <tr>
+                                        <td>{{ user.username }}</td>
+                                        <td>
+                                            {% if user.is_admin %}
+                                                <span class="badge bg-success">管理员</span>
+                                            {% else %}
+                                                <span class="badge bg-primary">普通用户</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if user.force_password_change %}
+                                                <span class="badge bg-warning">待修改</span>
+                                            {% else %}
+                                                <span class="badge bg-success">正常</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <a href="{{ url_for('admin.list_users') }}" class="btn btn-sm btn-outline-primary">管理</a>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="text-muted">暂无用户数据</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

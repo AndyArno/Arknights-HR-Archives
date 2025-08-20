@@ -1,0 +1,113 @@
+{% macro render_distribution_chart(pulls_by_pool_data, pulls_by_month_data, chart_id_prefix='distribution') %}
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h6 class="mb-0">招聘分布统计</h6>
+        <div class="btn-group btn-group-sm" role="group">
+            <input type="radio" class="btn-check" name="{{ chart_id_prefix }}-type" id="{{ chart_id_prefix }}-by-pool" autocomplete="off" value="pool" checked>
+            <label class="btn btn-outline-secondary" for="{{ chart_id_prefix }}-by-pool">按卡池</label>
+            <input type="radio" class="btn-check" name="{{ chart_id_prefix }}-type" id="{{ chart_id_prefix }}-by-month" autocomplete="off" value="month">
+            <label class="btn btn-outline-secondary" for="{{ chart_id_prefix }}-by-month">按月份</label>
+        </div>
+    </div>
+    <div class="card-body">
+        <div id="{{ chart_id_prefix }}-chart"></div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    // 使用 IIFE (立即调用函数表达式) 来避免全局作用域污染
+    (function() {
+        const pullsByPoolData = {{ pulls_by_pool_data|tojson }};
+        const pullsByMonthData = {{ pulls_by_month_data|tojson }};
+        const chartIdPrefix = "{{ chart_id_prefix }}";
+        
+        if (!pullsByPoolData || !pullsByMonthData) {
+            console.log("Distribution chart data not available for prefix:", chartIdPrefix);
+            return;
+        }
+
+        let distributionChart = null;
+
+        function calculateChartHeight(dataLength) {
+            // 基础高度 + 每个条目增加的高度
+            const baseHeight = 200;
+            const itemHeight = 30;
+            return baseHeight + (dataLength * itemHeight);
+        }
+
+        function getBarChartOption(data, title) {
+            // 数据已按时间顺序排列，无需再排序
+            // data.sort((a, b) => a.value - b.value);
+            return {
+                title: { text: title, left: 'center', textStyle: { fontSize: 14 } },
+                tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+                grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
+                xAxis: { type: 'value' },
+                yAxis: { 
+                    type: 'category', 
+                    data: data.map(item => item.name),
+                    axisLabel: {
+                        rich: {
+                            name: { fontSize: 12, align: 'left' },
+                            count: { fontSize: 11, color: '#50b3f5', align: 'left' }
+                        },
+                        formatter: function (value, index) {
+                            const item = data[index];
+                            return `{name|${value}}\n{count|${item.value}抽}`;
+                        }
+                    }
+                },
+                series: [{
+                    name: '抽数',
+                    type: 'bar',
+                    data: data.map(item => item.value),
+                    itemStyle: {
+                        color: '#5470c6'
+                    }
+                }]
+            };
+        }
+
+        function renderChart(data, type) {
+            const chartEl = document.getElementById(`${chartIdPrefix}-chart`);
+            if (!chartEl) return;
+            
+            // 动态设置图表容器高度
+            const chartHeight = calculateChartHeight(data.length);
+            chartEl.style.height = `${chartHeight}px`;
+            
+            if (!distributionChart) {
+                distributionChart = echarts.init(chartEl);
+            } else {
+                // 在重新渲染前调整大小
+                distributionChart.resize();
+            }
+            
+            const title = type === 'pool' ? '按卡池' : '按月份';
+            distributionChart.setOption(getBarChartOption(data, title), true);
+            
+            // 确保在设置选项后再次调整大小以适应新高度
+            distributionChart.resize();
+            
+            window.addEventListener('resize', () => {
+                if (distributionChart) distributionChart.resize();
+            });
+        }
+
+        // 初始化图表，显示按卡池的分布
+        renderChart(pullsByPoolData, 'pool');
+
+        // 无线选项卡事件监听
+        document.querySelectorAll(`input[name="${chartIdPrefix}-type"]`).forEach(radio => {
+            radio.addEventListener('change', function (e) {
+                const type = e.target.value;
+                const data = type === 'pool' ? pullsByPoolData : pullsByMonthData;
+                renderChart(data, type);
+            });
+        });
+
+    })();
+});
+</script>
+{% endmacro %}

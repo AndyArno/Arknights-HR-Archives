@@ -1,0 +1,246 @@
+{% extends "base.html" %}
+{% from "components/_gacha_summary.html" import render_gacha_summary %}
+{% from "components/_pool_details.html" import render_pool_details %}
+{% from "components/_distribution_chart.html" import render_distribution_chart %}
+
+{% block title %}明日方舟人事部档案{% endblock %}
+
+{% block head %}
+{{ super() }}
+<!-- ECharts JS -->
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+<!-- jQuery and DataTables (for the history table) -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.11.5/js/dataTables.bootstrap5.min.js"></script>
+<link rel="stylesheet" href="https://cdn.datatables.net/1.11.5/css/dataTables.bootstrap5.min.css">
+
+<style>
+    .global-stats-grid {
+        display: grid;
+        grid-template-columns: 55% 45%;
+        align-items: center;
+        gap: 2rem;
+    }
+    .rarity-details-grid {
+        display: grid;
+        grid-template-columns: auto 1fr 1fr 1fr;
+        gap: 0.75rem 1rem;
+        align-items: center;
+        font-size: 0.9rem;
+    }
+    .rarity-color-box {
+        width: 1rem;
+        height: 1rem;
+        display: inline-block;
+        vertical-align: middle;
+        margin-right: 0.5rem;
+        border-radius: 3px;
+    }
+    @media (max-width: 992px) {
+        .global-stats-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+    
+    /* 新增模块的样式 */
+    .new-charts-row .card {
+        height: 100%;
+    }
+    .total-pulls-badge {
+        display: inline-block;
+        padding: 0.35em 0.65em;
+        font-size: .9em;
+        font-weight: 700;
+        line-height: 1;
+        color: #fff;
+        text-align: center;
+        white-space: nowrap;
+        vertical-align: baseline;
+        border-radius: .25rem;
+        background-color: #50b3f5; /* 天蓝色 */
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<h1>明日方舟人事部档案</h1>
+
+<div class="status">
+    <div class="status-indicator"></div>
+    <span>服务运行中</span>
+</div>
+
+{% if current_user.is_authenticated %}
+    <div class="alert alert-success">
+        <i class="bi bi-check-circle"></i> 欢迎, {{ current_user.username }}!
+        {% if current_user.force_password_change %}
+            <span class="ms-2">
+                <a href="{{ url_for('auth.change_password') }}" class="alert-link">请修改您的初始密码</a>
+            </span>
+        {% endif %}
+    </div>
+{% else %}
+    <div class="alert alert-info">
+        <i class="bi bi-info-circle"></i> 请登录或注册以使用完整功能
+    </div>
+{% endif %}
+
+
+{% if current_user.is_authenticated %}
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h3 class="card-title mb-0">我的游戏账号 ({{ accounts|length }})</h3>
+        <a href="{{ url_for('user.add_account', username=current_user.username) }}" class="btn btn-primary">
+            <i class="bi bi-plus"></i> 添加新账号
+        </a>
+    </div>
+    <div class="card-body">
+        {% if accounts %}
+        <div class="list-group">
+            {% for account in accounts %}
+            <div class="list-group-item list-group-item-action">
+                <div class="d-flex w-100 justify-content-between">
+                    <h5 class="mb-1">{{ account.uid }}</h5>
+                    <div class="btn-group" role="group">
+                        <a href="{{ url_for('user.account_detail', username=current_user.username, account_uid=account.uid) }}" class="btn btn-sm btn-outline-primary" title="查看详情">
+                            <i class="bi bi-eye"></i> 查看详情
+                        </a>
+                        <button class="btn btn-sm btn-outline-success update-btn" data-uid="{{ account.uid }}" title="更新数据">
+                            <i class="bi bi-arrow-clockwise"></i> 更新数据
+                        </button>
+                    </div>
+                </div>
+                <p class="mb-1">
+                    <small class="text-muted">最后更新: {{ account.last_updated }}</small>
+                </p>
+                <div class="update-status-item" id="update-status-{{ account.uid }}" style="margin-top:5px; min-height: 18px; font-size: 0.875em;"></div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center p-4">
+            <p class="text-muted">您还没有添加任何游戏账号。</p>
+            <a href="{{ url_for('user.add_account', username=current_user.username) }}" class="btn btn-primary">
+                <i class="bi bi-plus"></i> 添加第一个账号
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+{% if current_user.is_authenticated and accounts %}
+<div class="card mt-4">
+    <div class="card-header">
+        <h3 class="card-title mb-0">默认账号抽卡总览 ({{ accounts[0].uid }})</h3>
+    </div>
+    <div class="card-body">
+        {{ render_gacha_summary(gacha_summary, 'index-summary') }}
+    </div>
+</div>
+
+<!-- 新增的图表模块 -->
+<div class="row new-charts-row mt-4">
+    <!-- 卡池详情分析 (左下) -->
+    <div class="col-lg-6 mb-4">
+        {{ render_pool_details(pool_data, latest_pool_details, 'index-pool-details', accounts[0].uid) }}
+    </div>
+
+    <!-- 招聘分布统计 (右下) -->
+    <div class="col-lg-6 mb-4">
+        {{ render_distribution_chart(pulls_by_pool_data, pulls_by_month_data, 'index-distribution') }}
+    </div>
+</div>
+
+<!-- History Table -->
+<div class="card mt-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">抽卡历史记录</h5>
+        <div><span class="badge bg-primary">总计: {{ gacha_data|length }} 条</span></div>
+    </div>
+    <div class="card-body">
+        {% if gacha_data %}
+            <div class="table-responsive">
+                <table class="table table-striped" id="indexGachaTable">
+                    <thead>
+                        <tr>
+                            <th>时间</th>
+                            <th>卡池名称</th>
+                            <th>角色</th>
+                            <th>稀有度</th>
+                            <th>是否为新</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for ts, record in gacha_data.items() %}
+                            {% for char in record.c %}
+                            <tr>
+                                <td>{{ ts|int|timestamp_to_datetime }}</td>
+                                <td>{{ record.p }}</td>
+                                <td>{{ char[0] }}</td>
+                                <td>
+                                    {% if char[1] == 6 %}<span class="badge" style="background-color: #ff6600;">6★</span>
+                                    {% elif char[1] == 5 %}<span class="badge" style="background-color: #ffd700; color: #333;">5★</span>
+                                    {% elif char[1] == 4 %}<span class="badge" style="background-color: #9370db;">4★</span>
+                                    {% else %}<span class="badge" style="background-color: #808080;">3★</span>
+                                    {% endif %}
+                                </td>
+                                <td>{% if char[2] == 1 %} <span class="badge bg-success">新</span> {% endif %}</td>
+                            </tr>
+                            {% endfor %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="text-center py-3"><p class="text-muted">暂无抽卡记录</p></div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    $('#indexGachaTable').DataTable({
+        pageLength: 10,
+        order: [[0, 'desc']],
+        language: { url: '//cdn.datatables.net/plug-ins/1.11.5/i18n/zh.json' }
+    });
+});
+</script>
+{% endif %}
+
+<div style="text-align: center; margin-top: 30px; color: #666;">
+    <p>© 2025 明日方舟人事部档案系统</p>
+</div>
+
+{% if current_user.is_authenticated %}
+<script>
+document.querySelectorAll('.update-btn').forEach(button => {
+    button.addEventListener('click', function() {
+        const accountUid = this.dataset.uid;
+        const statusEl = document.getElementById(`update-status-${accountUid}`);
+        
+        statusEl.innerHTML = '<span class="text-primary">更新中，请稍候...</span>';
+        this.disabled = true;
+        
+        fetch(`/update-test-data?account_uid=${accountUid}`)
+            .then(response => response.json())
+            .then(data => {
+                const messageClass = data.message.includes('成功') || data.message.includes('已开始') ? 'text-success' : 'text-danger';
+                statusEl.innerHTML = `<span class="${messageClass}">${data.message}</span>`;
+            })
+            .catch(error => {
+                statusEl.innerHTML = `<span class="text-danger">更新失败: ${error}</span>`;
+            })
+            .finally(() => {
+                // 重新启用按钮（可以加个延时）
+                setTimeout(() => {
+                    this.disabled = false;
+                }, 3000);
+            });
+    });
+});
+</script>
+{% endif %}
+{% endblock %}

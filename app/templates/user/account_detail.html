@@ -1,0 +1,281 @@
+{% extends "base.html" %}
+{% from "components/_gacha_summary.html" import render_gacha_summary %}
+{% from "components/_pool_details.html" import render_pool_details %}
+{% from "components/_distribution_chart.html" import render_distribution_chart %}
+
+{% block title %}账号详情 - 明日方舟人事部档案{% endblock %}
+
+{% block head %}
+{{ super() }}
+<!-- ECharts JS -->
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+<!-- jQuery and DataTables (for the history table) -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.11.5/js/dataTables.bootstrap5.min.js"></script>
+<link rel="stylesheet" href="https://cdn.datatables.net/1.11.5/css/dataTables.bootstrap5.min.css">
+<style>
+    /* --- 原始全局统计布局 --- */
+    .global-stats-grid {
+        display: grid;
+        grid-template-columns: 55% 45%; /* Chart takes 55%, details take 45% */
+        align-items: center;
+        gap: 2rem;
+    }
+
+    .rarity-details-grid {
+        display: grid;
+        grid-template-columns: auto 1fr 1fr 1fr;
+        gap: 0.75rem 1rem;
+        align-items: center;
+        font-size: 0.9rem;
+    }
+    .rarity-color-box {
+        width: 1rem;
+        height: 1rem;
+        display: inline-block;
+        vertical-align: middle;
+        margin-right: 0.5rem;
+        border-radius: 3px;
+    }
+
+    /* 响应式调整 */
+    @media (max-width: 992px) {
+        .global-stats-grid {
+            grid-template-columns: 1fr; /* 在小屏幕上堆叠 */
+        }
+    }
+
+    /* 新增模块的样式 */
+    .new-charts-row .card {
+        height: 100%;
+    }
+    .total-pulls-badge {
+        display: inline-block;
+        padding: 0.35em 0.65em;
+        font-size: .9em;
+        font-weight: 700;
+        line-height: 1;
+        color: #fff;
+        text-align: center;
+        white-space: nowrap;
+        vertical-align: baseline;
+        border-radius: .25rem;
+        background-color: #50b3f5; /* 天蓝色 */
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2>账号详情</h2>
+        <p class="text-muted mb-0">用户: {{ username }} | 账号UID: {{ account_uid }}</p>
+    </div>
+    <div>
+        <a href="{{ url_for('index') }}" class="btn btn-outline-secondary me-2">
+            <i class="bi bi-arrow-left"></i> 返回首页
+        </a>
+        {% if current_user.username == username %}
+            <form method="POST" action="{{ url_for('user.update_account_data', username=username, account_uid=account_uid) }}" class="d-inline">
+                <button type="submit" class="btn btn-outline-primary">
+                    <i class="bi bi-arrow-clockwise"></i> 更新数据
+                </button>
+            </form>
+            <!-- 导入数据按钮 -->
+            <button type="button" class="btn btn-outline-success" data-bs-toggle="modal" data-bs-target="#importDataModal">
+                <i class="bi bi-upload"></i> 导入数据
+            </button>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Visualization Section -->
+<div class="card">
+    <div class="card-header"><h5 class="mb-0">抽卡统计可视化</h5></div>
+    <div class="card-body">
+        {% if data %}
+            <div id="loading-spinner" class="text-center py-5">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">加载中...</span>
+                </div>
+                <p class="mt-2">正在计算统计数据...</p>
+            </div>
+            
+            <div id="charts-container" style="display: none;">
+                <!-- 调用新的可复用组件 -->
+                {{ render_gacha_summary(gacha_summary, 'detail-summary') }}
+
+                <!-- 3. 新增的图表模块 -->
+                <div class="row new-charts-row">
+                    <!-- 卡池详情分析 (左下) -->
+                    <div class="col-lg-6 mb-4">
+                        {{ render_pool_details(pool_data, latest_pool_details, 'detail-pool-details', account_uid) }}
+                    </div>
+
+                    <!-- 招聘分布统计 (右下) -->
+                    <div class="col-lg-6 mb-4">
+                        {{ render_distribution_chart(pulls_by_pool_data, pulls_by_month_data, 'detail-distribution') }}
+                    </div>
+                </div>
+            </div>
+        {% else %}
+            <div class="text-center py-5">
+                <h4 class="text-muted">暂无抽卡记录</h4>
+                <p class="text-muted">点击"更新数据"按钮来获取抽卡记录</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- History Table -->
+<div class="card mt-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">抽卡历史记录</h5>
+        <div><span class="badge bg-primary">总计: {{ data|length }} 条</span></div>
+    </div>
+    <div class="card-body">
+        {% if data %}
+            <div class="table-responsive">
+                <table class="table table-striped" id="gachaTable">
+                    <!-- 表格内容和之前一样 -->
+                    <thead>
+                        <tr>
+                            <th>时间</th>
+                            <th>卡池名称</th>
+                            <th>角色</th>
+                            <th>稀有度</th>
+                            <th>是否为新</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for ts, record in data.items() %}
+                            {% for char in record.c %}
+                            <tr>
+                                <td>{{ ts|int|timestamp_to_datetime }}</td>
+                                <td>{{ record.p }}</td>
+                                <td>{{ char[0] }}</td>
+                                <td>
+                                    {% if char[1] == 6 %}<span class="badge" style="background-color: #ff6600;">6★</span>
+                                    {% elif char[1] == 5 %}<span class="badge" style="background-color: #ffd700; color: #333;">5★</span>
+                                    {% elif char[1] == 4 %}<span class="badge" style="background-color: #9370db;">4★</span>
+                                    {% else %}<span class="badge" style="background-color: #808080;">3★</span>
+                                    {% endif %}
+                                </td>
+                                <td>{% if char[2] == 1 %} <span class="badge bg-success">新</span> {% endif %}</td>
+                            </tr>
+                            {% endfor %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="text-center py-3"><p class="text-muted">暂无抽卡记录</p></div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- 导入数据模态框 -->
+<div class="modal fade" id="importDataModal" tabindex="-1" aria-labelledby="importDataModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="importDataModalLabel">导入抽卡数据</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="importDataForm">
+                    <div class="mb-3">
+                        <label for="gachaDataFile" class="form-label">选择JSON文件</label>
+                        <input class="form-control" type="file" id="gachaDataFile" accept=".json" required>
+                        <div class="form-text">请选择从小黑盒等统计网站导出的抽卡数据文件</div>
+                    </div>
+                    <div class="alert alert-info" role="alert">
+                        <h6 class="alert-heading">注意事项</h6>
+                        <p class="mb-0">导入的数据将与现有数据合并，不会覆盖已有记录。</p>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" id="importDataBtn">导入</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if data %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const accountUid = "{{ account_uid }}";
+    
+    const loadingSpinner = document.getElementById('loading-spinner');
+    const chartsContainer = document.getElementById('charts-container');
+
+    function showLoading() {
+        loadingSpinner.style.display = 'block';
+        chartsContainer.style.display = 'none';
+    }
+
+    function hideLoading() {
+        loadingSpinner.style.display = 'none';
+        chartsContainer.style.display = 'block';
+    }
+
+    async function initialize() {
+        showLoading();
+        // 等待一段时间让组件渲染完成
+        await new Promise(resolve => setTimeout(resolve, 100));
+        hideLoading();
+        
+        // 触发窗口 resize 事件，确保 ECharts 图表正确渲染
+        window.dispatchEvent(new Event('resize'));
+    }
+
+    initialize();
+
+    $('#gachaTable').DataTable({
+        pageLength: 10,
+        order: [[0, 'desc']],
+        language: { url: '//cdn.datatables.net/plug-ins/1.11.5/i18n/zh.json' }
+    });
+    
+    // 添加导入数据功能的JavaScript逻辑
+    document.getElementById('importDataBtn').addEventListener('click', async function () {
+        const fileInput = document.getElementById('gachaDataFile');
+        const file = fileInput.files[0];
+        if (!file) {
+            alert('请选择一个JSON文件');
+            return;
+        }
+        
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        try {
+            const response = await fetch(`/api/import/gacha_data/${accountUid}`, {
+                method: 'POST',
+                body: formData
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                alert('数据导入成功');
+                // 关闭模态框
+                const modal = bootstrap.Modal.getInstance(document.getElementById('importDataModal'));
+                modal.hide();
+                // 刷新页面以显示最新数据
+                window.location.reload();
+            } else {
+                alert('导入失败: ' + result.message);
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('导入过程中发生错误');
+        }
+    });
+});
+</script>
+{% endif %}
+{% endblock %}
